@@ -25,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, UploadCloud, X } from "lucide-react";
+import Image from "next/image";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -40,6 +41,10 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageId, setImageId] = useState(null);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -64,6 +69,14 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
         barcode: item.barcode || "",
         category: item.category?.documentId || "",
       });
+
+      if (item.image) {
+        setImagePreview(item.image.url);
+        setImageId(item.image.id);
+      } else {
+        setImagePreview(null);
+        setImageId(null);
+      }
     } else {
       form.reset({
         name: "",
@@ -73,6 +86,9 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
         barcode: "",
         category: "",
       });
+
+      setImagePreview(null);
+      setImageId(null);
     }
   }, [item, isOpen]);
 
@@ -92,6 +108,40 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
     if (isOpen) fetchCategories();
   }, [isOpen]);
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("files", file);
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const res = await axiosInstance.post("/api/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          setUploadProgress(percent);
+        },
+      });
+
+      const uploadedImage = res.data[0];
+      setImagePreview(uploadedImage.url);
+      setImageId(uploadedImage.id);
+      toast.success("Image uploaded successfully");
+    } catch (error) {
+      toast.error("Image upload failed");
+      console.log(error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   async function onSubmit(values) {
     setLoading(true);
     try {
@@ -100,6 +150,7 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
           data: {
             ...values,
             category: values.category,
+            image: imageId,
           },
         });
         toast.success("Product updated successfully");
@@ -108,6 +159,7 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
           data: {
             ...values,
             category: values.category,
+            image: imageId,
           },
         });
         toast.success("Product created successfully");
@@ -129,7 +181,10 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
       </SheetHeader>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 px-6">
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-6 px-6 overflow-y-scroll pb-10"
+        >
           <FormField
             control={form.control}
             name="name"
@@ -241,6 +296,51 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
             )}
           />
 
+          <div className="space-y-2">
+            <FormLabel>Image</FormLabel>
+            {imagePreview && (
+              <div className="relative w-full max-w-xs">
+                <Image
+                  src={process.env.NEXT_PUBLIC_STRAPI_URL + imagePreview}
+                  alt="Product Preview"
+                  width={500}
+                  height={500}
+                  className="object-cover"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImagePreview(null);
+                    setImageId(null);
+                  }}
+                  className="absolute top-1 right-1 bg-white/80 hover:bg-white p-1 rounded-full"
+                >
+                  <X className="h-4 w-4 text-red-500" />
+                </button>
+              </div>
+            )}
+
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-primary hover:underline">
+                <UploadCloud className="w-4 h-4" />
+                Upload image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </label>
+            </div>
+
+            {uploading && (
+              <div className="flex items-center gap-2 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Uploading... {uploadProgress}%
+              </div>
+            )}
+          </div>
           <Button type="submit" disabled={loading}>
             {loading ? "Saving..." : "Save Changes"}
           </Button>

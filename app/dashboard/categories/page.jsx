@@ -20,6 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Sheet } from "@/components/ui/sheet";
+import { New } from "./features/new";
+import { toast } from "sonner";
 
 const Page = () => {
   const [categories, setCategories] = useState([]);
@@ -28,6 +31,8 @@ const Page = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filters, setFilters] = useState({ name: "", description: "" });
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -50,7 +55,8 @@ const Page = () => {
     return query.toString();
   };
 
-  useEffect(() => {
+  const fetchData = () => {
+    setLoading(true);
     axiosInstance
       .get(`/api/categories?${buildQuery()}`)
       .then((response) => {
@@ -67,6 +73,10 @@ const Page = () => {
         console.log("Failed to fetch categories:", error);
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData();
   }, [page, pageSize, filters]);
 
   const handlePageSizeChange = (value) => {
@@ -74,7 +84,28 @@ const Page = () => {
     setPage(1);
   };
 
-  const columns = getColumns(filters, handleFilterChange);
+  const handleDelete = async (item) => {
+    if (!confirm(`Are you sure you want to delete "${item.name}"?`)) return;
+
+    try {
+      await axiosInstance.delete(`/api/categories/${item.documentId}`);
+      await fetchData();
+      toast.success("Category deleted successfully");
+    } catch (error) {
+      console.log("Delete failed: ", error);
+      toast.error("Failed to delete category");
+    }
+  };
+
+  const columns = getColumns(
+    filters,
+    handleFilterChange,
+    (item) => {
+      setSelectedItem(item);
+      setSheetOpen(true);
+    },
+    handleDelete
+  );
 
   return (
     <div className="py-4 md:py-6 px-4 lg:px-6">
@@ -86,7 +117,24 @@ const Page = () => {
           </CardDescription>
 
           <CardAction>
-            <Button>Add a new record</Button>
+            <Button
+              onClick={() => {
+                setSelectedItem(null);
+                setSheetOpen(true);
+              }}
+            >
+              Add a new record
+            </Button>
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <New
+                item={selectedItem}
+                isOpen={sheetOpen}
+                onSuccess={() => {
+                  setSheetOpen(false);
+                  fetchData();
+                }}
+              />
+            </Sheet>
           </CardAction>
         </CardHeader>
 

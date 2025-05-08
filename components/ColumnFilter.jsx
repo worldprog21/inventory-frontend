@@ -9,8 +9,15 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { FilterX, Funnel } from "lucide-react";
+import { format } from "date-fns";
 
-export default function ColumnFilter({ label, value, onChange, placeholder }) {
+export default function ColumnFilter({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}) {
   const [inputValue, setInputValue] = useState(value || "");
   const [open, setOpen] = useState(false);
 
@@ -48,12 +55,24 @@ export default function ColumnFilter({ label, value, onChange, placeholder }) {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-52">
-            <Input
-              placeholder={placeholder}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              className="mb-2"
-            />
+            {type === "date" ? (
+              <Input
+                placeholder={placeholder}
+                value={inputValue}
+                onChange={(e) =>
+                  setInputValue(format(new Date(e.target.value), "yyyy-MM-dd"))
+                }
+                className="mb-2"
+                type="date"
+              />
+            ) : type === "text" ? (
+              <Input
+                placeholder={placeholder}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                className="mb-2"
+              />
+            ) : null}
             <Button onClick={handleApply} size="sm" className="w-full">
               Apply
             </Button>

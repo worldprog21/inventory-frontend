@@ -183,7 +183,7 @@ export const New = ({ item = null, onSuccess, isOpen }) => {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-6 px-6 overflow-y-scroll pb-10"
+          className="space-y-6 px-6 h-full overflow-y-scroll pb-10"
         >
           <FormField
             control={form.control}

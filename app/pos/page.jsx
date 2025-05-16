@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import axiosInstance from "@/lib/axios";
+import { toast } from "sonner";
 
 export default function POS() {
   const [cartVisible, setCartVisible] = useState(false);
@@ -24,6 +25,7 @@ export default function POS() {
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [saving, setSaving] = useState(false);
   const { status } = useSession();
 
   const fetchCategories = async () => {
@@ -132,6 +134,53 @@ export default function POS() {
   const tax = (subtotal - discount) * taxRate;
   const total = subtotal - discount + tax;
 
+  async function handleSave(data) {
+    if (cart.length === 0) {
+      toast.error("At least one product is required.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const salePayload = {
+        customer_name: "POS Customer",
+        invoice_number: "0",
+        date: new Date(),
+        notes: "POS Customer",
+        products: cart.map((item) => ({
+          product: item.id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        subtotal,
+        discount_amount: discount,
+        tax_amount: tax,
+        total,
+      };
+
+      const saleResponse = await axiosInstance.post(
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/sale-transactions`,
+        {
+          data: salePayload,
+        }
+      );
+
+      if (!saleResponse.data.data?.id) {
+        throw new Error("Failed to create sale.");
+      }
+
+      setCart([]);
+      toast.success("Invoice and stock updated successfully!");
+    } catch (error) {
+      console.error("Transaction failed:", error);
+      toast.error(
+        `Transaction failed: ${error.message || "An error occurred."}`
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="flex flex-col md:flex-row h-screen relative bg-background text-foreground">
       {/* Cart Toggle Button for small screens */}
@@ -188,7 +237,7 @@ export default function POS() {
         </div>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-5">
           {loadingProducts ? (
             <div className="flex items-center gap-2 mt-10 w-full">
               <IconLoader2 className="size-5 animate-spin text-gray-500" />
@@ -329,7 +378,9 @@ export default function POS() {
               <span>Total:</span>
               <span>${total.toFixed(2)}</span>
             </div>
-            <Button className="w-full mt-4">Checkout</Button>
+            <Button className="w-full mt-4" onClick={handleSave}>
+              {saving ? "Saving..." : "Checkout"}
+            </Button>
           </div>
         )}
       </div>

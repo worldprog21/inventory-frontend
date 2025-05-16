@@ -14,13 +14,16 @@ import axiosInstance from "@/lib/axios";
 
 export default function POS() {
   const [cartVisible, setCartVisible] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(5);
   const [taxRate, setTaxRate] = useState(0.1);
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const { status } = useSession();
 
   const fetchCategories = async () => {
@@ -37,11 +40,50 @@ export default function POS() {
     }
   };
 
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const params = new URLSearchParams();
+
+      if (debouncedSearch) {
+        params.append("filters[name][$containsi]", debouncedSearch);
+      }
+
+      if (selectedCategory !== null) {
+        params.append("filters[category][id][$eqi]", selectedCategory);
+      }
+
+      const res = await axiosInstance.get(`/api/products?${params.toString()}`);
+
+      setProducts(res.data.data);
+    } catch (error) {
+      console.log("Failed to fetch products", error);
+      toast.error("Failed to fetch products");
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // Debounce the search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
   useEffect(() => {
     if (status === "authenticated") {
       fetchCategories();
     }
   }, [status]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchProducts();
+    }
+  }, [debouncedSearch, selectedCategory, status]);
 
   if (status === "loading")
     return (
@@ -51,20 +93,6 @@ export default function POS() {
   if (status === "unauthenticated") {
     redirect("/login");
   }
-
-  const products = Array.from({ length: 30 }, (_, i) => ({
-    id: i + 1,
-    name: `Product ${i + 1}`,
-    price: parseFloat((Math.random() * 20 + 1).toFixed(2)),
-    category: categories[i % categories.length],
-    image: "/placeholder.png",
-  }));
-
-  const filteredProducts = products.filter(
-    (p) =>
-      (selectedCategory === "All" || p.category === selectedCategory) &&
-      p.name.toLowerCase().includes(search.toLowerCase())
-  );
 
   const addToCart = (product) => {
     setCart((prev) => {
@@ -159,30 +187,37 @@ export default function POS() {
 
         {/* Product Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {filteredProducts.map((product, index) => (
-            <Card
-              key={index}
-              onClick={() => addToCart(product)}
-              className="w-full cursor-pointer overflow-hidden rounded-lg border border-primary shadow-sm p-0 hover:opacity-80"
-            >
-              <img
-                src="/product.png"
-                alt="Product Image"
-                width={600}
-                height={400}
-                className="h-48 w-full object-cover"
-                style={{ aspectRatio: "600/400", objectFit: "cover" }}
-              />
-              <CardContent className="p-4 pt-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold">{product.name}</h3>
-                  <span className="text-2xl font-bold text-primary">
-                    ${product.price}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {loadingProducts ? (
+            <div className="flex items-center gap-2 mt-10 w-full">
+              <IconLoader2 className="size-5 animate-spin text-gray-500" />
+              <p>Loading products...</p>
+            </div>
+          ) : (
+            products.map((product, index) => (
+              <Card
+                key={index}
+                onClick={() => addToCart(product)}
+                className="w-full cursor-pointer overflow-hidden rounded-lg border border-primary shadow-sm p-0 hover:opacity-80"
+              >
+                <img
+                  src="/product.png"
+                  alt="Product Image"
+                  width={600}
+                  height={400}
+                  className="h-48 w-full object-cover"
+                  style={{ aspectRatio: "600/400", objectFit: "cover" }}
+                />
+                <CardContent className="p-4 pt-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-semibold">{product.name}</h3>
+                    <span className="text-2xl font-bold text-primary">
+                      ${product.price}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
 

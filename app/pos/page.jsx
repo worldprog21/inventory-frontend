@@ -10,15 +10,7 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-
-const categories = Array.from({ length: 20 }, (_, i) => `Category ${i + 1}`);
-const products = Array.from({ length: 30 }, (_, i) => ({
-  id: i + 1,
-  name: `Product ${i + 1}`,
-  price: parseFloat((Math.random() * 20 + 1).toFixed(2)),
-  category: categories[i % categories.length],
-  image: "/placeholder.png",
-}));
+import axiosInstance from "@/lib/axios";
 
 export default function POS() {
   const [cartVisible, setCartVisible] = useState(false);
@@ -27,8 +19,29 @@ export default function POS() {
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(5);
   const [taxRate, setTaxRate] = useState(0.1);
-
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const { status } = useSession();
+
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const res = await axiosInstance.get("/api/categories");
+
+      setCategories(res.data.data);
+    } catch (error) {
+      console.log("Failed to fetch categories", error);
+      toast.error("Failed to fetch categories");
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchCategories();
+    }
+  }, [status]);
 
   if (status === "loading")
     return (
@@ -38,6 +51,14 @@ export default function POS() {
   if (status === "unauthenticated") {
     redirect("/login");
   }
+
+  const products = Array.from({ length: 30 }, (_, i) => ({
+    id: i + 1,
+    name: `Product ${i + 1}`,
+    price: parseFloat((Math.random() * 20 + 1).toFixed(2)),
+    category: categories[i % categories.length],
+    image: "/placeholder.png",
+  }));
 
   const filteredProducts = products.filter(
     (p) =>
@@ -117,16 +138,23 @@ export default function POS() {
 
         {/* Categories */}
         <div className="flex gap-2 overflow-x-auto sticky top-[6.5rem] bg-background py-2 z-10">
-          {["All", ...categories].map((cat) => (
-            <Button
-              key={cat}
-              variant={cat === selectedCategory ? "default" : "outline"}
-              onClick={() => setSelectedCategory(cat)}
-              className="whitespace-nowrap"
-            >
-              {cat}
-            </Button>
-          ))}
+          {loadingCategories ? (
+            <div className="flex items-center gap-2 mt-10 w-full">
+              <IconLoader2 className="size-5 animate-spin text-gray-500" />
+              <p>Loading categories...</p>
+            </div>
+          ) : (
+            [{ id: null, name: "All" }, ...categories].map((cat) => (
+              <Button
+                key={cat?.id ?? "all"}
+                variant={cat?.id === selectedCategory ? "default" : "outline"}
+                onClick={() => setSelectedCategory(cat?.id)}
+                className="whitespace-nowrap"
+              >
+                {cat?.name}
+              </Button>
+            ))
+          )}
         </div>
 
         {/* Product Grid */}
